@@ -1,0 +1,11 @@
+[package]
+name = "cryptopals"
+version = "0.1.0"
+authors = ["Thomas Zumsteg <thomas.zumsteg@gmail.com>"]
+edition = "2018"
+
+[lib]
+path="src/main.rs"
+name="cryptopals"
+
+[dependencies]
