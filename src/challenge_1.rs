@@ -15,6 +15,24 @@ pub fn xor(buff_a: &str, buff_b: &str) -> String {
         .collect()
 }
 
+pub fn find_key(message: &str) -> (String, u32) {
+    let mut max_score = 0;
+    let mut max_result = String::new();
+    let chars: Vec<char> = message.chars().collect();
+    let encoded: Vec<u8> = (0..chars.len()).step_by(2)
+        .map(|i| (from_base8(chars[i]) << 4) + from_base8(chars[i+1]))
+        .collect();
+    for key in 0..255 {
+        let result = encoded.iter().map(|c| (c ^ key) as char).collect::<String>();
+        let score = result.chars().fold(0, |acc, c| acc + if c.is_ascii_alphabetic() || c.is_whitespace() { 1 } else { 0 });
+        if score > max_score {
+            max_score = score;
+            max_result = result;
+        }
+    }
+    (max_result, max_score)
+}
+
 fn from_base8(chr: char) -> u8 {
     match chr {
         '0'...'9' => chr as u8 - '0' as u8,
@@ -91,5 +109,11 @@ mod tests {
         assert_eq!(xor(value_3, value_1), value_2);
         assert_eq!(xor(value_2, value_3), value_1);
         assert_eq!(xor(value_3, value_2), value_1);
+    }
+
+    #[test]
+    fn test_decode() {
+        let (result, _) = find_key("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
+        assert_eq!("Cooking MC's like a pound of bacon", result);
     }
 }

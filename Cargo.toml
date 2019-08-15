@@ -9,3 +9,12 @@ path="src/main.rs"
 name="cryptopals"
 
 [dependencies]
+reqwest = "0.9.19"
+
+[[bin]]
+name="decode-string"
+path="src/decode-string.rs"
+
+[[bin]]
+name="decode-url"
+path="src/decode-url.rs"
