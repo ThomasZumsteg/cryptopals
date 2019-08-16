@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 pub fn encode(base8: &str) -> String {
     let mut result = String::new();
     let bytes: Vec<u8> = base8.chars().map(from_base8).collect();
@@ -15,22 +17,38 @@ pub fn xor(buff_a: &str, buff_b: &str) -> String {
         .collect()
 }
 
+struct Guess {
+    result: String,
+    score: u32,
+}
+
 pub fn find_key(message: &str) -> (String, u32) {
-    let mut max_score = 0;
-    let mut max_result = String::new();
-    let chars: Vec<char> = message.chars().collect();
-    let encoded: Vec<u8> = (0..chars.len()).step_by(2)
-        .map(|i| (from_base8(chars[i]) << 4) + from_base8(chars[i+1]))
-        .collect();
+    let mut best_guess: Option<Guess> = None;
+    let (bytes, _) = message.chars().fold((String::new(), None), |(mut result, byte), chr| {
+        if let Some(value) = byte {
+            result.push(((from_base8(value) << 4) + from_base8(chr)) as char);
+            (result, None)
+        } else {
+            (result, Some(chr))
+        }
+    });
     for key in 0..255 {
-        let result = encoded.iter().map(|c| (c ^ key) as char).collect::<String>();
-        let score = result.chars().fold(0, |acc, c| acc + if c.is_ascii_alphabetic() || c.is_whitespace() { 1 } else { 0 });
-        if score > max_score {
-            max_score = score;
-            max_result = result;
+        let (result, score) = bytes.chars().fold((String::new(), 0), |(mut decoded, mut score), b| {
+            let c = (b as u8 ^ key) as char;
+            if c.is_ascii_alphabetic() || c.is_whitespace() {
+                score += 1;
+            }
+            decoded.push(c);
+            (decoded, score)
+        });
+        if best_guess.is_none() || best_guess.as_ref().unwrap().score < score {
+            best_guess = Some(Guess { result: result, score: score });
         }
     }
-    (max_result, max_score)
+    if let Some(soltuion) = best_guess {
+        return (soltuion.result, soltuion.score)
+    }
+    unimplemented!()
 }
 
 fn from_base8(chr: char) -> u8 {
