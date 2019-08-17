@@ -8,6 +8,18 @@ pub fn encode(base8: &str) -> String {
     return result;
 }
 
+pub fn encode_with_key(message: &str, key: &str) -> String {
+    message.chars()
+        .zip(key.chars().cycle())
+        .fold(String::new(),
+            |mut acc, (m, k)| {
+                let xor = (m as u8) ^ (k as u8);
+                acc.push(to_base8(xor >> 4));
+                acc.push(to_base8(xor & 0xf));
+                acc
+            })
+}
+
 pub fn xor(buff_a: &str, buff_b: &str) -> String {
     buff_a.chars()
         .zip(buff_b.chars().into_iter())
@@ -19,6 +31,7 @@ struct Guess {
     result: String,
     score: u32,
 }
+
 
 pub fn find_key(message: &str) -> (String, u32) {
     let mut best_guess: Option<Guess> = None;
@@ -131,5 +144,17 @@ mod tests {
     fn test_decode() {
         let (result, _) = find_key("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
         assert_eq!("Cooking MC's like a pound of bacon", result);
+    }
+
+    #[test]
+    fn test_encode_with_key() {
+        assert_eq!(
+            encode_with_key(
+                "Burning 'em, if you ain't quick and nimble\n\
+                I go crazy when I hear a cymbal", "ICE"),
+            "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623\
+            d63343c2a26226324272765272a282b2f20430a652e2c652a3\
+            124333a653e2b2027630c692b20283165286326302e27282f"
+        );
     }
 }
