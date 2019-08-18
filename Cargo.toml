@@ -18,3 +18,7 @@ path="src/decode-string.rs"
 [[bin]]
 name="decode-url"
 path="src/decode-url.rs"
+
+[[bin]]
+name="decode-long"
+path="src/decode-long.rs"

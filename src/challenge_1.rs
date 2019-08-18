@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 pub fn encode(base8: &str) -> String {
     let mut result = String::new();
     let bytes: Vec<u8> = base8.chars().map(from_base8).collect();
@@ -32,7 +34,6 @@ struct Guess {
     score: u32,
 }
 
-
 pub fn find_key(message: &str) -> (String, u32) {
     let mut best_guess: Option<Guess> = None;
     let (bytes, _) = message.chars().fold((String::new(), None), |(mut result, byte), chr| {
@@ -60,6 +61,63 @@ pub fn find_key(message: &str) -> (String, u32) {
         return (soltuion.result, soltuion.score)
     }
     unimplemented!()
+}
+
+fn hamming_distance(buff_a: &str, buff_b: &str) -> u32 {
+    buff_a.chars()
+        .zip(buff_b.chars())
+        .fold(0, |mut total, (a, b)| {
+            let (a_byte, b_byte) = (a as u8, b as u8);
+            for i in 0..8 {
+                total += (((a_byte >> i) & 0x1) ^ ((b_byte >> i) & 0x1)) as u32;
+            }
+            total
+        })
+}
+
+pub fn decode_with_size(encoded: &str, size: u8) -> String {
+    let mut blocks = vec![String::new(); size as usize];
+    for (c, chr) in encoded.chars().enumerate() {
+        blocks[c % (size as usize)].push(chr);
+    }
+    let mut key = String::new();
+    for block in blocks {
+        let (k, _) = find_key(&block); 
+        key += &k;
+    }
+    // print!("{}\n", key);
+    key
+}
+
+pub fn find_key_size(encoded: &str) -> Vec<u8> {
+    let mut edit_distances: HashMap<u8, f32> = HashMap::new();
+    for i in 1..256 {
+        let blocks: Vec<String> = make_blocks(encoded, i).iter().take(4)
+            .map(|s| s.to_owned()).collect();
+        let mut edit_distance = 0.0;
+        for a in 0..3 {
+            for b in (a+1)..4 {
+                edit_distance += hamming_distance(&blocks[a], &blocks[b]) as f32 / (i as f32 * 6.0 * 8.0);
+            }
+        }
+        edit_distances.insert(i as u8, edit_distance);
+    }
+    let mut results = edit_distances.iter().collect::<Vec<(&u8, &f32)>>();
+    results.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap());
+    results.iter().map(|v| v.0.to_owned()).collect()
+}
+
+fn make_blocks(bytes: &str, size: usize) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut temp = String::new();
+    for (c, chr) in bytes.chars().enumerate() {
+        if c % size == 0 && c != 0 {
+            result.push(temp);
+            temp = String::new();
+        }
+        temp.push(chr);
+    }
+    result
 }
 
 fn from_base8(chr: char) -> u8 {
@@ -155,6 +213,14 @@ mod tests {
             "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623\
             d63343c2a26226324272765272a282b2f20430a652e2c652a3\
             124333a653e2b2027630c692b20283165286326302e27282f"
+        );
+    }
+
+    #[test]
+    fn test_hamming_distance() {
+        assert_eq!(
+            hamming_distance("this is a test", "wokka wokka!!!"),
+            37
         );
     }
 }
