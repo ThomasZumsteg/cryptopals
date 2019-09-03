@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 #[derive(Debug, PartialEq, Clone)]
 struct Bytes(Vec<u8>);
 
@@ -56,36 +54,62 @@ impl Bytes {
         Bytes(bytes)
     }
 
+    fn from_str(value: &str) -> Bytes {
+        Bytes(String::from(value).into_bytes())
+    }
+
     fn decode(&self, Bytes(key): &Bytes) -> Bytes {
         let Bytes(message) = self;
         Bytes(message.iter().zip(key.iter().cycle()).map(|(k, v)| k ^ v).collect())
     }
 
     fn find_key_of_size(&self, key_size: usize) -> Bytes {
-        let Bytes(bytes) = self;
-
-        if key_size != 1 {
-            unimplemented!()
+        let mut key = Vec::new();
+        for block in self.blocks(key_size) {
+            key.push(block.decode_block());
         }
+        Bytes(key)
+    }
 
-        let mut best_score: Option<usize> = None;
-        let mut best_result: Option<Bytes> = None;
+    fn blocks(&self, size: usize) -> Vec<Bytes> {
+        let Bytes(bytes) = self;
+        let mut result: Vec<Vec<u8>> = vec![Vec::new(); size];
+        for (i, b) in bytes.iter().enumerate() {
+            result[i % size].push(*b);
+        }
+        result.iter().map(|b| Bytes(b.clone())).collect()
+    }
+
+    fn decode_block(&self) -> u8 {
+        let mut best_score: Option<isize> = None;
+        let mut best_key: Option<u8> = None;
         for key in 0..(std::u8::MAX) {
             let Bytes(result) = self.decode(&Bytes(vec![key]));
             let score = result.iter().map(|&b| {
                 let c = b as char;
-                if c.is_ascii_alphabetic() || c.is_whitespace() { 1 } else { 0 }
+                match c {
+                    'a'...'z' | 'A'...'Z' | ' ' => 1, 
+                    _ if c.is_control() => -1,
+                    _ => 0
+                }
             }).sum();
-            println!("{}", Bytes(result.clone()).to_string());
             if best_score.is_none() || best_score.unwrap() < score {
-                best_result= Some(Bytes(result));
+                best_key = Some(key);
                 best_score = Some(score);
             }
         }
-        if let Some(result) = best_result {
-            return result;
-        }
-        unimplemented!()
+        best_key.unwrap()
+    }
+
+    fn hamming_distance(&self, Bytes(other): &Bytes) -> u32 {
+        let Bytes(bytes) = self;
+        bytes.iter().zip(other)
+            .fold(0, |mut total, (a, b)| {
+                for i in 0..8 {
+                    total += (((a >> i) & 0x1u8) ^ ((b >> i) & 0x1u8)) as u32;
+                }
+                total
+            })
     }
 }
 
@@ -95,86 +119,6 @@ impl ToString for Bytes {
         bytes.iter().map(|&c| c as char).collect()
     }
 }
-
-
-
-// pub fn find_key(message: &str) -> (String, u32) {
-//     let mut best_guess: Option<Guess> = None;
-//     let bytes = hex_encode(&message);
-//     for key in 0..255 {
-//         let (result, score) = bytes.chars().fold((String::new(), 0), |(mut decoded, mut score), b| {
-//             let c = (b as u8 ^ key) as char;
-//             if c.is_ascii_alphabetic() || c.is_whitespace() {
-//                 score += 1;
-//             }
-//             decoded.push(c);
-//             (decoded, score)
-//         });
-//         if best_guess.is_none() || best_guess.as_ref().unwrap().score < score {
-//             best_guess = Some(Guess { result: result, score: score });
-//         }
-//     }
-//     if let Some(soltuion) = best_guess {
-//         return (soltuion.result, soltuion.score)
-//     }
-//     unimplemented!()
-// }
-
-// fn hamming_distance(buff_a: &str, buff_b: &str) -> u32 {
-//     buff_a.chars()
-//         .zip(buff_b.chars())
-//         .fold(0, |mut total, (a, b)| {
-//             let (a_byte, b_byte) = (a as u8, b as u8);
-//             for i in 0..8 {
-//                 total += (((a_byte >> i) & 0x1) ^ ((b_byte >> i) & 0x1)) as u32;
-//             }
-//             total
-//         })
-// }
-
-// pub fn decode_with_size(encoded: &str, size: u8) -> String {
-//     let mut blocks = vec![String::new(); size as usize];
-//     for (c, chr) in encoded.chars().enumerate() {
-//         blocks[c % (size as usize)].push(chr);
-//     }
-//     let mut key = String::new();
-//     for block in blocks {
-//         let (k, _) = find_key(&block); 
-//         key += &k;
-//     }
-//     key
-// }
-
-// pub fn find_key_size(encoded: &str) -> Vec<u8> {
-//     let mut edit_distances: HashMap<u8, f32> = HashMap::new();
-//     for i in 1..256 {
-//         let blocks: Vec<String> = make_blocks(encoded, i).iter().take(4)
-//             .map(|s| s.to_owned()).collect();
-//         let mut edit_distance = 0.0;
-//         for a in 0..3 {
-//             for b in (a+1)..4 {
-//                 edit_distance += hamming_distance(&blocks[a], &blocks[b]) as f32 / (i as f32 * 6.0 * 8.0);
-//             }
-//         }
-//         edit_distances.insert(i as u8, edit_distance);
-//     }
-//     let mut results = edit_distances.iter().collect::<Vec<(&u8, &f32)>>();
-//     results.sort_by(|a, b| a.1.partial_cmp(b.1).unwrap());
-//     results.iter().map(|v| v.0.to_owned()).collect()
-// }
-
-// fn make_blocks(bytes: &str, size: usize) -> Vec<String> {
-//     let mut result = Vec::new();
-//     let mut temp = String::new();
-//     for (c, chr) in bytes.chars().enumerate() {
-//         if c % size == 0 && c != 0 {
-//             result.push(temp);
-//             temp = String::new();
-//         }
-//         temp.push(chr);
-//     }
-//     result
-// }
 
 
 mod tests {
@@ -228,23 +172,35 @@ mod tests {
         assert_eq!("Cooking MC's like a pound of bacon", bytes.decode(&key).to_string());
     }
 
-    // #[test]
-    // fn test_encode_with_key() {
-    //     assert_eq!(
-    //         encode_with_key(
-    //             "Burning 'em, if you ain't quick and nimble\n\
-    //             I go crazy when I hear a cymbal", "ICE"),
-    //         "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623\
-    //         d63343c2a26226324272765272a282b2f20430a652e2c652a3\
-    //         124333a653e2b2027630c692b20283165286326302e27282f"
-    //     );
-    // }
+    #[test]
+    fn test_encode_with_key() {
+        let bytes = Bytes::from_base8("0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623\
+            d63343c2a26226324272765272a282b2f20430a652e2c652a3\
+            124333a653e2b2027630c692b20283165286326302e27282f");
+        assert_eq!(
+            bytes.decode(&Bytes::from_str("ICE")).to_string(),
+            "Burning 'em, if you ain't quick and nimble\n\
+                I go crazy when I hear a cymbal",
+        );
+    }
 
-    // #[test]
-    // fn test_hamming_distance() {
-    //     assert_eq!(
-    //         hamming_distance("this is a test", "wokka wokka!!!"),
-    //         37
-    //     );
-    // }
+    #[test]
+    fn test_decode_with_key_size() {
+        let bytes = Bytes::from_base8("0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623\
+            d63343c2a26226324272765272a282b2f20430a652e2c652a3\
+            124333a653e2b2027630c692b20283165286326302e27282f");
+        assert_eq!(
+            bytes.find_key_of_size(3).to_string(),
+            "ICE"
+        );
+    }
+
+    #[test]
+    fn test_hamming_distance() {
+        assert_eq!(
+            Bytes::from_str("this is a test").hamming_distance(
+                &Bytes::from_str("wokka wokka!!!")),
+            37
+        );
+    }
 }
