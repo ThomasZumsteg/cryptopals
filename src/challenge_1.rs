@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[derive(Debug, PartialEq, Clone)]
 struct Bytes(Vec<u8>);
 
@@ -111,6 +113,19 @@ impl Bytes {
                 total
             })
     }
+
+    fn guess_key_sizes(&self) -> Vec<u8> {
+        let mut edit_distances: HashMap<u8, f32> = HashMap::new();
+        for size in 3..256 {
+            let blocks: Vec<Bytes> = self.blocks(size);
+            let mut edit_distance = 0.0;
+            edit_distance += blocks[0].hamming_distance(&blocks[1]) as f32 / (size as f32);
+            edit_distances.insert(size as u8, edit_distance);
+        }
+        let mut results = edit_distances.iter().collect::<Vec<(&u8, &f32)>>();
+        results.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
+        results.iter().map(|v| v.0.to_owned()).collect()
+    }
 }
 
 impl ToString for Bytes {
@@ -182,6 +197,15 @@ mod tests {
             "Burning 'em, if you ain't quick and nimble\n\
                 I go crazy when I hear a cymbal",
         );
+    }
+
+    #[test]
+    fn test_decode_without_key() {
+        let bytes = Bytes::from_base8("0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623\
+            d63343c2a26226324272765272a282b2f20430a652e2c652a3\
+            124333a653e2b2027630c692b20283165286326302e27282f");
+        assert!(*bytes.guess_key_sizes().first().unwrap() == 3);
+        assert_eq!(bytes.find_key_of_size(3).to_string(), "ICE");
     }
 
     #[test]
