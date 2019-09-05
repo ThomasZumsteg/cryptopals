@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Clone)]
-struct Bytes(Vec<u8>);
+pub struct Bytes(Vec<u8>);
 
 impl Bytes {
-    fn from_base8(base8: &str) -> Bytes {
+    pub fn from_base8(base8: &str) -> Bytes {
         let mut bytes = Vec::new();
         for (i, chr) in base8.chars().enumerate() {
             let nibble = match chr {
@@ -22,10 +22,11 @@ impl Bytes {
         Bytes(bytes )
     }
 
-    fn from_base64(base64: &str) -> Bytes {
+    pub fn from_base64(base64: &str) -> Bytes {
         let mut bytes = Vec::new();
         for (i, chr) in base64.chars().enumerate() {
             let six_bits = match chr {
+                '=' => 0,
                 'A'...'Z' => chr as u8 - 'A' as u8,
                 'a'...'z' => chr as u8 - 'a' as u8 + 26,
                 '0'...'9' => chr as u8 - '0' as u8 + 52,
@@ -56,16 +57,16 @@ impl Bytes {
         Bytes(bytes)
     }
 
-    fn from_str(value: &str) -> Bytes {
+    pub fn from_str(value: &str) -> Bytes {
         Bytes(String::from(value).into_bytes())
     }
 
-    fn decode(&self, Bytes(key): &Bytes) -> Bytes {
+    pub fn decode(&self, Bytes(key): &Bytes) -> Bytes {
         let Bytes(message) = self;
         Bytes(message.iter().zip(key.iter().cycle()).map(|(k, v)| k ^ v).collect())
     }
 
-    fn find_key_of_size(&self, key_size: usize) -> Bytes {
+    pub fn find_key_of_size(&self, key_size: usize) -> Bytes {
         let mut key = Vec::new();
         for block in self.blocks(key_size) {
             key.push(block.decode_block());
@@ -82,19 +83,23 @@ impl Bytes {
         result.iter().map(|b| Bytes(b.clone())).collect()
     }
 
+    pub fn score(&self) -> isize {
+        let Bytes(bytes) = self;
+        bytes.iter().map(|&b| {
+            let c = b as char;
+            match c {
+                'a'...'z' | 'A'...'Z' | ' ' => 1, 
+                _ if c.is_control() => -1,
+                _ => 0
+            }
+        }).sum()
+    }
+
     fn decode_block(&self) -> u8 {
         let mut best_score: Option<isize> = None;
         let mut best_key: Option<u8> = None;
         for key in 0..(std::u8::MAX) {
-            let Bytes(result) = self.decode(&Bytes(vec![key]));
-            let score = result.iter().map(|&b| {
-                let c = b as char;
-                match c {
-                    'a'...'z' | 'A'...'Z' | ' ' => 1, 
-                    _ if c.is_control() => -1,
-                    _ => 0
-                }
-            }).sum();
+            let score = self.decode(&Bytes(vec![key])).score();
             if best_score.is_none() || best_score.unwrap() < score {
                 best_key = Some(key);
                 best_score = Some(score);
@@ -103,26 +108,28 @@ impl Bytes {
         best_key.unwrap()
     }
 
-    fn hamming_distance(&self, Bytes(other): &Bytes) -> u32 {
+    fn hamming_distance(&self, Bytes(other): &Bytes) -> usize {
         let Bytes(bytes) = self;
         bytes.iter().zip(other)
             .fold(0, |mut total, (a, b)| {
                 for i in 0..8 {
-                    total += (((a >> i) & 0x1u8) ^ ((b >> i) & 0x1u8)) as u32;
+                    total += (((a >> i) & 0x1u8) ^ ((b >> i) & 0x1u8)) as usize;
                 }
                 total
             })
     }
 
-    fn guess_key_sizes(&self) -> Vec<u8> {
-        let mut edit_distances: HashMap<u8, f32> = HashMap::new();
-        for size in 3..256 {
+    pub fn guess_key_sizes(&self) -> Vec<u8> {
+        let mut edit_distances: HashMap<u8, usize> = HashMap::new();
+        for size in 3..64 {
             let blocks: Vec<Bytes> = self.blocks(size);
-            let mut edit_distance = 0.0;
-            edit_distance += blocks[0].hamming_distance(&blocks[1]) as f32 / (size as f32);
+            let mut edit_distance = 0;
+            edit_distance += blocks[0].hamming_distance(&blocks[1]) as usize * size;
+            edit_distance += blocks[0].hamming_distance(&blocks[2]) as usize * size;
+            edit_distance += blocks[1].hamming_distance(&blocks[2]) as usize * size;
             edit_distances.insert(size as u8, edit_distance);
         }
-        let mut results = edit_distances.iter().collect::<Vec<(&u8, &f32)>>();
+        let mut results = edit_distances.iter().collect::<Vec<(&u8, &usize)>>();
         results.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap());
         results.iter().map(|v| v.0.to_owned()).collect()
     }
