@@ -10,6 +10,7 @@ name="cryptopals"
 
 [dependencies]
 reqwest = "0.9.19"
+openssl = { version = "0.10", features = ["vendored"] }
 
 [[bin]]
 name="decode-string"
@@ -18,3 +19,7 @@ path="src/decode-string.rs"
 [[bin]]
 name="decode-long"
 path="src/decode-long.rs"
+
+[[bin]]
+name="decode-aes"
+path="src/decode-aes.rs"
